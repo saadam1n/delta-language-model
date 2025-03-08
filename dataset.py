@@ -68,7 +68,7 @@ class TextDataset(torch.utils.data.Dataset):
                             int(token) for token in line.split()
                         ], dtype=torch.long
                     )
-                    for line in tqdm.tqdm(iterable=lines, desc="Building dataset from cache...")
+                    for line in tqdm.tqdm(iterable=lines, desc="Reading dataset from cache...")
                 ]
 
         # zero pad everything

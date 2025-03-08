@@ -72,8 +72,8 @@ class MultiHeadCasualAttention(nn.Module):
         qkT = torch.matmul(q, k)
         masked_qkT = qkT + torch.triu(torch.ones_like(qkT) * -9999.0, diagonal=1)
 
-        attention_scores = F.softmax(masked_qkT / math.sqrt(self.head_embedding_dim))
-        weighted_values = torch.matmul(attention_scores, v).permute((0, 2, 1, 3)).view(N, L, self.total_head_dim)
+        attention_scores = F.softmax(masked_qkT / math.sqrt(self.head_embedding_dim), dim=3)
+        weighted_values = torch.matmul(attention_scores, v).permute((0, 2, 1, 3)).reshape(N, L, self.total_head_dim)
 
         attention_output = self.attention_linear(weighted_values) + tokens
 

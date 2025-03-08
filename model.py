@@ -1,9 +1,9 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import torch.utils.checkpoint as checkpoint
 
 from components import Transformer
-import tiktoken
 
 class LanguageModel(nn.Module):
     """
@@ -33,26 +33,30 @@ class LanguageModel(nn.Module):
     """
     Takes in one-hot vectors. Produces a probability distribution of output tokens.
     """
-    def calculate_next_token_probabilities(self, raw_token_embeddings):
-        N, _ = raw_token_embeddings.shape
+    def forward_embeddings(self, raw_token_embeddings):
+        N, _, _ = raw_token_embeddings.shape
 
-        batched_positional_encodings = self.positional_encoding(torch.arange(0, self.context_length).view(1, -1).expand(N, -1))
+        batched_positional_encodings = self.positional_encoding(
+            torch.arange(0, self.context_length, device=raw_token_embeddings.device).view(1, -1).expand(N, -1)
+        )
+
         token_embeddings = raw_token_embeddings + batched_positional_encodings
 
-        latent_next_tokens = self.transformer_layers(token_embeddings)
+        latent_next_tokens = checkpoint.checkpoint_sequential(self.transformer_layers, segments=self.num_transformer_layers // 2, input=token_embeddings, use_reentrant=False)
 
-        next_token_probabilities = torch.matmul(latent_next_tokens, self.positional_encoding.weight.transpose(0, 1))
+        next_token_probabilities = checkpoint.checkpoint(self.compute_next_token_probabilities, latent_next_tokens, use_reentrant=False)
 
         return next_token_probabilities
     
     """
     Takes in a list of tokens. Produces a probability distribution of output tokens.
     """
+    def forward_tokens(self, token_ids):
+        raw_token_embeddings = self.embedding_matrix(token_ids)
 
-
-    """
-    Tokenize a string
-    """
-    def tokenize(self, string: str):
-        return self.tokenizer(string)
+        return self.forward_embeddings(raw_token_embeddings)
     
+    def compute_next_token_probabilities(self, latent_next_tokens):
+        return F.log_softmax(
+            torch.matmul(latent_next_tokens, self.embedding_matrix.weight.transpose(0, 1)), dim=2
+        )
