@@ -36,11 +36,7 @@ class LanguageModel(nn.Module):
     def forward_embeddings(self, raw_token_embeddings):
         N, _, _ = raw_token_embeddings.shape
 
-        batched_positional_encodings = self.positional_encoding(
-            torch.arange(0, self.context_length, device=raw_token_embeddings.device).view(1, -1).expand(N, -1)
-        )
-
-        token_embeddings = raw_token_embeddings + batched_positional_encodings
+        token_embeddings = raw_token_embeddings + self.positional_encoding.weight
 
         latent_next_tokens = checkpoint.checkpoint_sequential(self.transformer_layers, segments=self.num_transformer_layers // 2, input=token_embeddings, use_reentrant=False)
 
@@ -57,6 +53,6 @@ class LanguageModel(nn.Module):
         return self.forward_embeddings(raw_token_embeddings)
     
     def compute_next_token_probabilities(self, latent_next_tokens):
-        return F.log_softmax(
-            torch.matmul(latent_next_tokens, self.embedding_matrix.weight.transpose(0, 1)), dim=2
-        )
+        token_similairity = torch.matmul(latent_next_tokens, self.embedding_matrix.weight.transpose(0, 1))
+
+        return F.log_softmax(token_similairity, dim=2)
