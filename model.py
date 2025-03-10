@@ -48,7 +48,10 @@ class LanguageModel(nn.Module):
     Takes in a list of tokens. Produces a probability distribution of output tokens.
     """
     def forward_tokens(self, token_ids):
-        raw_token_embeddings = self.embedding_matrix(token_ids)
+        # we want to replace all padding indices
+        cleaned_token_ids = torch.where(token_ids != -1, token_ids, self.tokenizer.max_token_value)
+
+        raw_token_embeddings = self.embedding_matrix(cleaned_token_ids)
 
         return self.forward_embeddings(raw_token_embeddings)
     
