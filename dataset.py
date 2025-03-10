@@ -71,7 +71,7 @@ class TextDataset(torch.utils.data.Dataset):
                     for line in tqdm.tqdm(iterable=lines, desc="Reading dataset from cache...")
                 ]
 
-        # zero pad everything
+        # pad everything 
         self.truncated_lengths = []
         for i in range(len(self.samples)):
             truncated_length = self.samples[i].shape[0]
@@ -79,7 +79,7 @@ class TextDataset(torch.utils.data.Dataset):
             self.truncated_lengths.append(truncated_length)
 
             padding_size = self.max_length - truncated_length
-            self.samples[i] = torch.cat((self.samples[i], torch.ones(padding_size, dtype=torch.long) * tokenizer.max_token_value), dim=0)
+            self.samples[i] = torch.cat((self.samples[i], torch.ones(padding_size, dtype=torch.long) * -1), dim=0)
 
         print(f"Dataset had {len(self)} items that satisfied filtration requirements.")
 

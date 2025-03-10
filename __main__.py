@@ -56,7 +56,7 @@ if __name__ == "__main__":
         num_sequences = 0
 
         for batch_idx, data in enumerate(dataloader):
-            print(f"\tProcessing training batch {batch_idx}")
+            #print(f"\tProcessing training batch {batch_idx}")
 
             data = data.to(device)
            
@@ -66,10 +66,14 @@ if __name__ == "__main__":
 
             N, L, _ = logits.shape
 
-            flattened_logits = logits.view(N * L, -1)
-            flattened_tokens = data.flatten()
+            # for any given token, we want to predict the next token
+            # for this reason we shift data forward by 1 and pad with -1
+            shifted_tokens = torch.cat((data[:, 1:], -torch.ones_like(data[:, :1])), dim=1)
 
-            loss = F.cross_entropy(input=flattened_logits, target=flattened_tokens)
+            flattened_logits = logits.view(N * L, -1)
+            flattened_tokens = shifted_tokens.flatten()
+
+            loss = F.cross_entropy(input=flattened_logits, target=flattened_tokens, ignore_index=-1)
 
             flattened_logits.retain_grad()
             loss.backward()
@@ -78,6 +82,8 @@ if __name__ == "__main__":
 
             total_loss += loss.item() * data.shape[0]
             num_sequences += data.shape[0]
+
+            print(f"\tLoss in batch {batch_idx}\twas {loss.item()}")
 
         average_loss = total_loss / num_sequences
         loss_history.append(average_loss)
@@ -88,4 +94,4 @@ if __name__ == "__main__":
 
         scheduler.step()
 
-    torch.save(delta.state_dict(), "data/model.pt")
+        torch.save(delta.state_dict(), f"data/model-{epoch_idx}.pt")
