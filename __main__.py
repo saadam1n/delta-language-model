@@ -16,12 +16,12 @@ if __name__ == "__main__":
     else:
         raise RuntimeError("Unable to use CUDA!")
 
-    num_transformer_layers=16
-    num_attention_heads=16
-    min_length = 64
-    context_length=384
-    embedding_dim=128
-    head_embedding_dim=8
+    num_transformer_layers=8
+    num_attention_heads=32
+    min_length = 128
+    context_length=511
+    embedding_dim=384
+    head_embedding_dim=16
     tokenizer = tiktoken.get_encoding("r50k_base")
     num_epochs = 16
     batch_size = 32
@@ -37,11 +37,13 @@ if __name__ == "__main__":
         shuffle=True
     )
 
+    torch.set_float32_matmul_precision("high")
+
     delta = LanguageModel(num_transformer_layers=num_transformer_layers, num_attention_heads=num_attention_heads, context_length=context_length, embedding_dim=embedding_dim, head_embedding_dim=8, tokenizer=tokenizer)
     delta = delta.to(device)
 
-    num_parameters = sum(param.numel() for param in delta.parameters())
-    print(f"Training LLM with {num_parameters} parameters.")
+    num_parameters = sum(param.numel() for param in delta.parameters()) / 1000000
+    print(f"Training LLM with {num_parameters}M parameters.")
 
     optimizer = torch.optim.Adam(delta.parameters(), lr=0.001)
     scheduler  = torch.optim.lr_scheduler.StepLR(optimizer, step_size=4, gamma=0.85)
@@ -55,27 +57,13 @@ if __name__ == "__main__":
         total_loss = 0.0
         num_sequences = 0
 
+        epoch_start_time = time.time()
         for batch_idx, data in enumerate(dataloader):
-            #print(f"\tProcessing training batch {batch_idx}")
-
             data = data.to(device)
            
             optimizer.zero_grad()
 
-            logits = delta.forward_tokens(data)
-
-            N, L, _ = logits.shape
-
-            # for any given token, we want to predict the next token
-            # for this reason we shift data forward by 1 and pad with -1
-            shifted_tokens = torch.cat((data[:, 1:], -torch.ones_like(data[:, :1])), dim=1)
-
-            flattened_logits = logits.view(N * L, -1)
-            flattened_tokens = shifted_tokens.flatten()
-
-            loss = F.cross_entropy(input=flattened_logits, target=flattened_tokens, ignore_index=-1)
-
-            flattened_logits.retain_grad()
+            loss = delta(data)
             loss.backward()
 
             optimizer.step()
@@ -83,7 +71,10 @@ if __name__ == "__main__":
             total_loss += loss.item() * data.shape[0]
             num_sequences += data.shape[0]
 
-            print(f"\tLoss in batch {batch_idx}\twas {loss.item()}")
+            print(f"\tPerpelexity in batch {batch_idx}\twas {loss.exp().item()}")
+        duration = time.time() - epoch_start_time
+
+        print(f"Epoch took {duration} seconds to complete; ETA for rest of training is {(num_epochs - epoch_idx - 1) * duration}")
 
         average_loss = total_loss / num_sequences
         loss_history.append(average_loss)

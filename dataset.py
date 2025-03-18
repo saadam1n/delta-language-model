@@ -35,6 +35,10 @@ class TextDataset(torch.utils.data.Dataset):
                     article = row[1]
 
                     text = article.strip()
+
+                    url_pattern = r'https?://(?:www\.)?[-\w@:%._\+~#=]{1,256}\.[a-z]{2,6}\b(?:[-\w@:%_+.~#?&//=]*)'
+                    text = re.sub(url_pattern, "LINK", text)
+
                     if not text:
                         continue
 
